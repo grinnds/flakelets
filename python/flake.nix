@@ -17,20 +17,25 @@
       system:
       let
         pkgs = nixpkgs.legacyPackages.${system};
-        pythonPackages = pkgs.python313Packages;
+        python = pkgs.python313;
+        pythonWithLd = pkgs.writeShellScriptBin "python" ''
+          export LD_LIBRARY_PATH="$NIX_LD_LIBRARY_PATH"
+          exec -a "$0" ${pkgs.lib.getExe python} "$@"
+        '';
+        venvShellHookWithLd = python.pkgs.venvShellHook.overrideAttrs (_: {
+          pythonInterpreter = pkgs.lib.getExe pythonWithLd;
+        });
       in
       {
         devShells.default = pkgs.mkShell {
-          buildInputs = [
-            pythonPackages.python
-            pythonPackages.venvShellHook
-          ];
+          buildInputs = [ venvShellHookWithLd ];
           packages = with pkgs; [
             uv
           ];
           venvDir = "./.venv";
           env = {
-            LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath pkgs.pythonManylinuxPackages.manylinux1;
+            NIX_LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath pkgs.pythonManylinuxPackages.manylinux1;
+            NIX_LD = pkgs.stdenv.cc.bintools.dynamicLinker;
           };
         };
       }
